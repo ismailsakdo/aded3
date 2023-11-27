@@ -1,0 +1,105 @@
+﻿* Encoding: UTF-8.
+
+DATASET ACTIVATE DataSet0.
+FREQUENCIES VARIABLES=y x1 x2 x3 x4 x5
+  /ORDER=ANALYSIS.
+
+*convert the status into different format/ convert 1/2 into 1 and 0
+
+RECODE x1 (1=1) (2=0) INTO x1.n.
+EXECUTE.
+
+RECODE x2 (1=1) (2=0) INTO x2.n.
+EXECUTE.
+
+RECODE x3 (1=1) (2=0) INTO x3.n.
+EXECUTE.
+
+RECODE x4 (1=1) (2=0) INTO x4.n.
+EXECUTE.
+
+RECODE x5 (1=1) (2=0) INTO x5.n.
+EXECUTE.
+
+*------ sum
+
+COMPUTE SumExpose=SUM(x1.n,x2.n,x3.n,x4.n,x5.n).
+EXECUTE.
+
+*----- categorize the numeric into category
+
+RECODE SumExpose (Lowest thru 3=1) (3.01 thru Highest=2) INTO SumExpose.cat.
+EXECUTE.
+VARIABLE LABELS SumExpose.cat 'Sum of Exposure in Category Format'.
+VALUE LABELS SumExpose.cat
+1 'Low Exposure'
+2 'High Exposure'.
+
+*---- 
+
+CORRELATIONS
+  /VARIABLES=SumExpose y1
+  /PRINT=TWOTAIL NOSIG
+  /MISSING=PAIRWISE.
+
+REGRESSION
+  /DESCRIPTIVES MEAN STDDEV CORR SIG N
+  /MISSING LISTWISE
+  /STATISTICS COEFF OUTS CI(95) R ANOVA COLLIN TOL
+  /CRITERIA=PIN(.05) POUT(.10)
+  /NOORIGIN 
+  /DEPENDENT y1
+  /METHOD=ENTER SumExpose.
+
+*-------
+
+DATASET ACTIVATE DataSet2.
+CORRELATIONS
+  /VARIABLES=ConfirmedCovid19cases TemperatureC Humidity WindSpeedms Rainfallmm 
+    SunshineDurationHrsday
+  /PRINT=TWOTAIL NOSIG
+  /MISSING=PAIRWISE.
+
+REGRESSION
+  /MISSING LISTWISE
+  /STATISTICS COEFF OUTS R ANOVA
+  /CRITERIA=PIN(.05) POUT(.10)
+  /NOORIGIN 
+  /DEPENDENT ConfirmedCovid19cases
+  /METHOD=ENTER SunshineDurationHrsday
+  /METHOD=ENTER TemperatureC Humidity WindSpeedms SunshineDurationHrsday.
+
+REGRESSION
+  /MISSING LISTWISE
+  /STATISTICS COEFF OUTS R ANOVA
+  /CRITERIA=PIN(.05) POUT(.10)
+  /NOORIGIN 
+  /DEPENDENT ConfirmedCovid19cases
+  /METHOD=ENTER SunshineDurationHrsday
+  /METHOD=STEPWISE TemperatureC Humidity WindSpeedms SunshineDurationHrsday.
+
+*-------
+
+DATASET ACTIVATE DataSet3.
+PREDICT THRU DAY 30.
+* Time Series Modeler.
+TSMODEL
+   /MODELSUMMARY  PRINT=[MODELFIT]
+   /MODELSTATISTICS  DISPLAY=YES MODELFIT=[ SRSQUARE]
+   /MODELDETAILS  PRINT=[ FORECASTS]
+   /SERIESPLOT OBSERVED FORECAST
+   /OUTPUTFILTER DISPLAY=ALLMODELS
+   /SAVE  PREDICTED(Predicted) LCL(LCL) UCL(UCL)
+   /AUXILIARY  CILEVEL=95 MAXACFLAGS=24
+   /MISSING USERMISSING=EXCLUDE
+   /MODEL DEPENDENT=ConfirmedCovid19cases INDEPENDENT=DAY_
+      PREFIX='Model'
+   /EXPERTMODELER TYPE=[ARIMA EXSMOOTH]
+   /AUTOOUTLIER  DETECT=OFF.
+
+*likelihood of living TITANIC
+
+
+DATASET ACTIVATE DataSet4.
+RECODE Sex ('male'=1) ('female'=2) INTO gender.
+EXECUTE.
